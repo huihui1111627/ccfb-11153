@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>库存中台 · 运营后台</title>
+<link rel="stylesheet" href="/admin/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">库存中台 <span class="tag">Inventory Hub</span></div>
+  <nav class="tabs">
+    <button class="tab active" data-tab="overview">概览</button>
+    <button class="tab" data-tab="inventory">渠道分配</button>
+    <button class="tab" data-tab="sku">商品与套装</button>
+    <button class="tab" data-tab="shop">店铺与规则</button>
+    <button class="tab" data-tab="ledger">预占流水</button>
+    <button class="tab" data-tab="alert">超卖预警</button>
+    <button class="tab" data-tab="sync">同步补偿</button>
+    <button class="tab" data-tab="trace">链路追踪</button>
+  </nav>
+  <div class="live"><span class="dot" id="liveDot"></span><span id="liveText">自动刷新 5s</span>
+    <button id="refresh" class="btn ghost small">立即刷新</button>
+  </div>
+</header>
+
+<main>
+  <section id="panel-overview" class="panel">
+    <div class="cards" id="overviewCards"></div>
+    <div class="card">
+      <h2>渠道同步健康</h2>
+      <div id="syncSummary" class="sync-summary"></div>
+    </div>
+  </section>
+
+  <section id="panel-inventory" class="panel hidden">
+    <div class="card">
+      <div class="row between">
+        <h2>各 SKU 库存与渠道分配</h2>
+        <div class="hint">共享池 = 实物 − 各渠道分配之和；渠道可单可借共享池</div>
+      </div>
+      <div id="inventoryTable" class="table-wrap"></div>
+    </div>
+    <div class="card">
+      <h2>盘点调整</h2>
+      <form id="stocktakeForm" class="inline-form">
+        <label>SKU <input name="skuId" list="skuOptions" required placeholder="TEE-BLK-M" /></label>
+        <label>实盘数 <input name="counted" type="number" min="0" required /></label>
+        <label>摊回规则
+          <select name="rule">
+            <option value="pro_rata">pro_rata 按比例</option>
+            <option value="shared_first">shared_first 共享池先担</option>
+            <option value="channel_first">channel_first 渠道先担</option>
+          </select>
+        </label>
+        <label>备注 <input name="note" placeholder="抽盘" /></label>
+        <button class="btn" type="submit">提交盘点</button>
+      </form>
+      <div id="stocktakeResult" class="hint"></div>
+      <datalist id="skuOptions"></datalist>
+    </div>
+  </section>
+
+  <section id="panel-sku" class="panel hidden">
+    <div class="card">
+      <h2>商品与 SKU</h2>
+      <div id="skuTable" class="table-wrap"></div>
+    </div>
+    <div class="card">
+      <h2>新建 / 编辑 SKU</h2>
+      <form id="skuForm" class="inline-form">
+        <label>SKU ID <input name="id" required placeholder="TEE-RED-M" /></label>
+        <label>名称 <input name="title" required placeholder="基础纯棉T恤 红色 M" /></label>
+        <label>安全库存 <input name="safetyStock" type="number" min="0" value="0" /></label>
+        <label class="wide">套装子件（JSON，如 [{"skuId":"TEE-BLK-M","qty":1}]，留空为普通 SKU）
+          <input name="components" placeholder='[{"skuId":"TEE-BLK-M","qty":1}]' /></label>
+        <button class="btn" type="submit">保存</button>
+      </form>
+      <div id="skuFormMsg" class="hint"></div>
+    </div>
+  </section>
+
+  <section id="panel-shop" class="panel hidden">
+    <div class="card">
+      <h2>渠道店铺与分配规则</h2>
+      <div id="shopTable" class="table-wrap"></div>
+    </div>
+    <div class="card">
+      <h2>新增 / 编辑店铺</h2>
+      <form id="shopForm" class="inline-form">
+        <label>店铺 ID <input name="id" required placeholder="tmall-flagship" /></label>
+        <label>渠道
+          <select name="channel">
+            <option value="tmall">天猫</option><option value="jd">京东</option>
+            <option value="douyin">抖音</option><option value="miniapp">小程序</option>
+          </select>
+        </label>
+        <label>名称 <input name="name" required placeholder="天猫旗舰店" /></label>
+        <label>分配模式
+          <select name="allocMode"><option value="ratio">ratio 按比例</option><option value="fixed">fixed 固定值</option></select>
+        </label>
+        <label>分配值 <input name="allocValue" type="number" step="0.01" required value="0.2" /></label>
+        <label>小渠道 <input name="isSmall" type="checkbox" /></label>
+        <label>优先级 <input name="priority" type="number" value="5" /></label>
+        <button class="btn" type="submit">保存</button>
+      </form>
+      <div id="shopFormMsg" class="hint"></div>
+    </div>
+  </section>
+
+  <section id="panel-ledger" class="panel hidden">
+    <div class="card">
+      <div class="row between">
+        <h2>预占与库存流水</h2>
+        <div class="filters">
+          <input id="ledgerSku" placeholder="SKU，如 TEE-BLK-M" />
+          <button id="ledgerLoad" class="btn ghost small">查询</button>
+        </div>
+      </div>
+      <div id="ledgerTable" class="table-wrap"></div>
+    </div>
+  </section>
+
+  <section id="panel-alert" class="panel hidden">
+    <div class="card">
+      <div class="row between">
+        <h2>超卖与库存预警</h2>
+        <div class="filters">
+          <select id="alertStatus"><option value="OPEN">待处理</option><option value="RESOLVED">已处理</option><option value="">全部</option></select>
+          <button id="alertLoad" class="btn ghost small">刷新</button>
+        </div>
+      </div>
+      <div id="alertTable" class="table-wrap"></div>
+    </div>
+  </section>
+
+  <section id="panel-sync" class="panel hidden">
+    <div class="card">
+      <div class="row between">
+        <h2>渠道库存同步</h2>
+        <div class="filters">
+          <button id="syncRun" class="btn small">立即补偿</button>
+          <button id="syncRepair" class="btn ghost small">对账修复</button>
+        </div>
+      </div>
+      <div id="syncTable" class="table-wrap"></div>
+      <div id="syncMsg" class="hint"></div>
+    </div>
+    <div class="card">
+      <h2>平台库存快照（缓存 vs 中台）</h2>
+      <div id="platformTable" class="table-wrap"></div>
+    </div>
+  </section>
+
+  <section id="panel-trace" class="panel hidden">
+    <div class="card">
+      <div class="row between">
+        <h2>单个 SKU 变动链路</h2>
+        <div class="filters">
+          <input id="traceSku" placeholder="SKU，如 TEE-BLK-M" />
+          <button id="traceLoad" class="btn ghost small">追踪</button>
+        </div>
+      </div>
+      <div id="traceSummary" class="trace-summary"></div>
+      <div id="traceTable" class="table-wrap"></div>
+    </div>
+    <div class="card">
+      <h2>系统对账</h2>
+      <button id="reconcileBtn" class="btn small">执行对账</button>
+      <div id="reconcileResult" class="hint"></div>
+    </div>
+  </section>
+</main>
+<footer class="foot">库存中台 · 单点库存 · 渠道分配 · 预占/释放 · 幂等同步 · 可追责流水</footer>
+<script src="/admin/app.js"></script>
+</body>
+</html>

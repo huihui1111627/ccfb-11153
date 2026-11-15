@@ -1,0 +1,17 @@
+{
+  "name": "inventory-hub",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "多平台库存中台：天猫/京东/抖音/小程序统一库存、预占、渠道分配、超卖预警与模拟大促压测",
+  "main": "dist/server/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node tools/copy-web.mjs",
+    "clean": "rm -rf dist",
+    "start": "node --no-warnings dist/server/main.js",
+    "demo": "node --no-warnings dist/sim/demo.js",
+    "sim": "node --no-warnings dist/sim/flash-sale.js",
+    "test": "node --no-warnings dist/tests/run-all.js",
+    "pretest": "npm run build"
+  }
+}
