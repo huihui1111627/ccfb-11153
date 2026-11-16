@@ -1,0 +1,38 @@
+{{template "head" .}}
+<div class="card">
+  <h3>解析日志</h3>
+  <input id="q_name" placeholder="按域名过滤, 如 www">
+  <input id="q_client" placeholder="按来源 IP 过滤">
+  <button onclick="load()">查询</button>
+  <button class="gray" onclick="autoRefresh()">自动刷新: <span id="ar">关</span></button>
+</div>
+<div id="entries"></div>
+<script>
+let auto = null;
+function autoRefresh() {
+  if (auto) { clearInterval(auto); auto = null; document.getElementById('ar').textContent = '关'; }
+  else { auto = setInterval(load, 3000); document.getElementById('ar').textContent = '开'; }
+}
+async function load() {
+  const p = new URLSearchParams({
+    qname: document.getElementById('q_name').value,
+    client: document.getElementById('q_client').value,
+  });
+  const rows = await api('GET', '/api/logs?' + p);
+  const el = document.getElementById('entries');
+  if (!rows || !rows.length) { el.innerHTML = '<div class="card muted">暂无日志</div>'; return; }
+  el.innerHTML = rows.map((e, i) => `<div class="card">
+    <div>
+      <b>${esc(e.qname)}</b> ${esc(e.qtype)}
+      <span class="muted">${esc(e.proto)} 来自 ${esc(e.client)} · ${new Date(e.time).toLocaleTimeString()} · ${e.latency_ms.toFixed(2)}ms</span>
+      <b style="color:${e.rcode==='NOERROR'?'#16a34a':'#dc2626'}">${esc(e.rcode)}</b>
+      ${e.truncated ? '<span class="down">[TC截断]</span>' : ''}
+      <button class="gray" onclick="document.getElementById('tr${i}').style.display='block'===document.getElementById('tr${i}').style.display?'none':'block'">决策过程</button>
+    </div>
+    <div class="muted">应答: ${(e.answers||[]).map(esc).join(' | ') || '(空)'}</div>
+    <div class="trace" id="tr${i}" style="display:none">${(e.trace||[]).map(esc).join('\n')}</div>
+  </div>`).join('');
+}
+load();
+</script>
+{{template "foot" .}}

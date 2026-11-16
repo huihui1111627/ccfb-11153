@@ -1,0 +1,61 @@
+{{template "head" .}}
+<div class="card">
+  <h3>域名区</h3>
+  <table id="zt">
+    <thead><tr><th>区名</th><th>SOA Serial</th><th>记录数</th><th>操作</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+{{if eq .Role "master"}}
+<div class="card">
+  <h4>新建区</h4>
+  <input id="zname" placeholder="example.com">
+  <input id="zns" placeholder="ns1.example.com">
+  <input id="zmbox" placeholder="hostmaster.example.com">
+  <button onclick="createZone()">创建</button>
+</div>
+<div class="card">
+  <h4>导入区文件</h4>
+  <textarea id="zfile" rows="10" style="width:100%" placeholder="$ORIGIN example.com.&#10;$TTL 300&#10;@ IN SOA ns1 hostmaster ( 1 300 60 1209600 60 )"></textarea>
+  <br><button onclick="importZone()">导入(覆盖同名区)</button>
+</div>
+{{end}}
+<script>
+async function load() {
+  const zones = await api('GET', '/api/zones');
+  const tb = document.querySelector('#zt tbody');
+  tb.innerHTML = zones.map(z => `<tr>
+    <td><a href="/records?zone=${encodeURIComponent(z.name)}">${esc(z.name)}</a></td>
+    <td>${z.serial}</td><td>${z.records}</td>
+    <td>
+      <a href="/api/zones/${encodeURIComponent(z.name)}/export"><button class="gray">导出区文件</button></a>
+      {{if eq .Role "master"}}<button class="red" onclick="delZone('${esc(z.name)}')">删除</button>{{end}}
+    </td></tr>`).join('');
+}
+async function createZone() {
+  try {
+    await api('POST', '/api/zones', {
+      name: document.getElementById('zname').value,
+      ns: document.getElementById('zns').value,
+      mbox: document.getElementById('zmbox').value,
+    });
+    toast('已创建', true); load();
+  } catch (e) { toast(e.message, false); }
+}
+async function delZone(name) {
+  if (!confirm('删除区 ' + name + ' ?')) return;
+  try { await api('DELETE', '/api/zones/' + encodeURIComponent(name)); toast('已删除', true); load(); }
+  catch (e) { toast(e.message, false); }
+}
+async function importZone() {
+  const text = document.getElementById('zfile').value;
+  try {
+    const resp = await fetch('/api/zones/-/import', { method: 'POST', body: text });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error);
+    toast(`已导入 ${data.zone} (${data.records} 条记录)`, true); load();
+  } catch (e) { toast(e.message, false); }
+}
+load();
+</script>
+{{template "foot" .}}

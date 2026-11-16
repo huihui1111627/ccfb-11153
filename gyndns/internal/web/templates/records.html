@@ -1,0 +1,120 @@
+{{template "head" .}}
+<div class="card">
+  <h3>记录管理 <select id="zsel" onchange="switchZone()"></select></h3>
+  <table id="rt">
+    <thead><tr>
+      <th>名称</th><th>类型</th><th>TTL</th><th>记录值</th>
+      <th>权重</th><th>子网限定</th><th>兜底</th><th>健康检查</th><th>操作</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+{{if eq .Role "master"}}
+<div class="card">
+  <h4 id="formtitle">添加记录</h4>
+  <input type="hidden" id="f_old">
+  <table><tr>
+    <td><input id="f_name" placeholder="www 或完整域名" size="14"></td>
+    <td><select id="f_type">
+      <option>A</option><option>AAAA</option><option>CNAME</option><option>MX</option>
+      <option>TXT</option><option>SRV</option><option>NS</option><option>PTR</option>
+    </select></td>
+    <td><input id="f_ttl" placeholder="300" size="4"></td>
+    <td><input id="f_rdata" placeholder="记录值, 如 10.0.1.10" size="24"></td>
+    <td><input id="f_weight" placeholder="权重(默认100)" size="8"></td>
+    <td><input id="f_subnets" placeholder="10.1.0.0/16,逗号分隔" size="18"></td>
+    <td><label><input type="checkbox" id="f_backup"> 兜底</label></td>
+    <td><input id="f_check" placeholder="tcp://10.0.1.10:80" size="20"></td>
+    <td><button onclick="save()">保存</button></td>
+  </tr></table>
+  <p class="muted">健康检查支持 tcp://host:port 和 http://host:port/path;子网限定为空表示对所有客户端生效;兜底记录只在常规地址全部不可用时启用。</p>
+</div>
+{{end}}
+<script>
+const TYPES = {A:1,NS:2,CNAME:5,SOA:6,PTR:12,MX:15,TXT:16,AAAA:28,SRV:33};
+const TYPES_R = Object.fromEntries(Object.entries(TYPES).map(([k,v])=>[v,k]));
+let zone = new URLSearchParams(location.search).get('zone') || '';
+let editing = null;
+
+async function loadZones() {
+  const zones = await api('GET', '/api/zones');
+  const sel = document.getElementById('zsel');
+  sel.innerHTML = zones.map(z => `<option ${z.name===zone?'selected':''}>${esc(z.name)}</option>`).join('');
+  if (!zone && zones.length) { zone = zones[0].name; sel.value = zone; }
+  load();
+}
+function switchZone() {
+  zone = document.getElementById('zsel').value;
+  history.replaceState(null, '', '/records?zone=' + encodeURIComponent(zone));
+  load();
+}
+async function load() {
+  if (!zone) return;
+  const recs = await api('GET', '/api/zones/' + encodeURIComponent(zone) + '/records');
+  const tb = document.querySelector('#rt tbody');
+  tb.innerHTML = recs.map((r,i) => `<tr>
+    <td>${esc(r.name)}</td><td>${esc(TYPES_R[r.type]||r.type)}</td><td>${r.ttl}</td>
+    <td>${esc(r.rdata)}</td><td>${r.weight||''}</td>
+    <td>${esc((r.subnets||[]).join(','))}</td>
+    <td>${r.backup?'是':''}</td><td>${esc(r.check||'')}</td>
+    <td>{{if eq .Role "master"}}<button class="gray" onclick='edit(${JSON.stringify("IDX")})'>编辑</button>
+    <button class="red" onclick='del(${JSON.stringify("IDX")})'>删除</button>{{end}}</td>
+  </tr>`.replaceAll('"IDX"', String(i))).join('');
+  window._recs = recs;
+}
+function absName(n) {
+  n = n.trim();
+  if (!n) return n;
+  if (n === '@') return zone;
+  if (n.endsWith('.')) return n;
+  return n + '.' + zone;
+}
+function edit(i) {
+  const r = window._recs[i];
+  editing = r;
+  document.getElementById('formtitle').textContent = '编辑记录';
+  document.getElementById('f_name').value = r.name;
+  document.getElementById('f_type').value = TYPES_R[r.type] || 'A';
+  document.getElementById('f_ttl').value = r.ttl;
+  document.getElementById('f_rdata').value = r.rdata;
+  document.getElementById('f_weight').value = r.weight || '';
+  document.getElementById('f_subnets').value = (r.subnets||[]).join(',');
+  document.getElementById('f_backup').checked = !!r.backup;
+  document.getElementById('f_check').value = r.check || '';
+}
+async function del(i) {
+  const r = window._recs[i];
+  if (!confirm(`删除 ${r.name} ${TYPES_R[r.type]} ${r.rdata} ?`)) return;
+  try {
+    const q = new URLSearchParams({name: r.name, type: TYPES_R[r.type], rdata: r.rdata});
+    await api('DELETE', `/api/zones/${encodeURIComponent(zone)}/records?` + q);
+    toast('已删除', true); load();
+  } catch (e) { toast(e.message, false); }
+}
+async function save() {
+  const rec = {
+    name: absName(document.getElementById('f_name').value),
+    type: TYPES[document.getElementById('f_type').value],
+    ttl: parseInt(document.getElementById('f_ttl').value || '300'),
+    rdata: document.getElementById('f_rdata').value.trim(),
+    weight: parseInt(document.getElementById('f_weight').value || '0'),
+    subnets: document.getElementById('f_subnets').value.split(',').map(s=>s.trim()).filter(Boolean),
+    backup: document.getElementById('f_backup').checked,
+    check: document.getElementById('f_check').value.trim(),
+  };
+  try {
+    if (editing) {
+      await api('PUT', `/api/zones/${encodeURIComponent(zone)}/records`, {
+        old_name: editing.name, old_type: editing.type, old_rdata: editing.rdata, record: rec,
+      });
+      editing = null;
+      document.getElementById('formtitle').textContent = '添加记录';
+    } else {
+      await api('POST', `/api/zones/${encodeURIComponent(zone)}/records`, rec);
+    }
+    toast('已保存', true); load();
+  } catch (e) { toast(e.message, false); }
+}
+loadZones();
+</script>
+{{template "foot" .}}

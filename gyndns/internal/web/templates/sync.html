@@ -1,0 +1,51 @@
+{{template "head" .}}
+<div class="card">
+  <h3>主从同步 <button class="gray" onclick="load()">刷新</button></h3>
+  <div id="role"></div>
+</div>
+<div class="card">
+  <h4>区状态</h4>
+  <table id="zt">
+    <thead><tr><th>区</th><th>Serial</th><th>变更日志条数</th><th>操作</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+<div class="card" id="slavecard" style="display:none">
+  <h4>从服务器同步状态</h4>
+  <table id="st">
+    <thead><tr><th>区</th><th>Serial</th><th>最近同步</th><th>结果</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+<script>
+async function load() {
+  const s = await api('GET', '/api/sync');
+  document.getElementById('role').innerHTML = s.role === 'master'
+    ? `角色: <b>主服务器</b> · 从服务器: ${(s.slaves||[]).map(esc).join(', ') || '<span class="muted">未配置</span>'}`
+    : `角色: <b>从服务器</b>`;
+  document.querySelector('#zt tbody').innerHTML = (s.zones||[]).map(z => `<tr>
+    <td>${esc(z.name)}</td><td>${z.serial}</td><td>${z.journal}</td>
+    <td>${s.role === 'master'
+      ? `<button onclick="notify('${esc(z.name)}')">立即通知从服务器</button>`
+      : `<button onclick="transfer('${esc(z.name)}')">立即同步</button>`}</td>
+  </tr>`).join('');
+  if (s.role !== 'master') {
+    document.getElementById('slavecard').style.display = 'block';
+    document.querySelector('#st tbody').innerHTML = (s.slave_status||[]).map(x => `<tr>
+      <td>${esc(x.zone)}</td><td>${x.serial}</td>
+      <td class="muted">${x.last_sync && x.last_sync.startsWith('0001') ? '-' : new Date(x.last_sync).toLocaleString()}</td>
+      <td>${esc(x.last_result)}</td></tr>`).join('')
+      || '<tr><td colspan="4" class="muted">尚未同步</td></tr>';
+  }
+}
+async function notify(zone) {
+  try { await api('POST', '/api/sync/notify', {zone}); toast('已发送 NOTIFY', true); }
+  catch (e) { toast(e.message, false); }
+}
+async function transfer(zone) {
+  try { await api('POST', '/api/sync/transfer', {zone}); toast('同步已触发, 稍后刷新查看', true); setTimeout(load, 1500); }
+  catch (e) { toast(e.message, false); }
+}
+load();
+</script>
+{{template "foot" .}}

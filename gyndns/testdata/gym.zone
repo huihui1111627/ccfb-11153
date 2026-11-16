@@ -1,0 +1,40 @@
+$ORIGIN gym.example.
+$TTL 300
+@	IN SOA ns1.gym.example. hostmaster.gym.example. (
+		1 300 60 1209600 60 )
+	IN NS ns1.gym.example.
+ns1	IN A 127.0.0.1
+
+; 会员 App 入口, 三个机房各一个地址, 子网/权重/健康检查元数据通过 API 或页面加
+app	IN A 10.1.0.10
+app	IN A 10.2.0.10
+app	IN A 10.3.0.10
+
+; 门店闸机
+gate	IN CNAME app.gym.example.
+
+; 常见记录类型
+web	IN AAAA 2001:db8::10
+mail	IN MX 10 mail1.gym.example.
+mail1	IN A 10.1.0.25
+@	IN TXT "v=spf1 -all"
+_sip._tcp IN SRV 10 60 5060 sip.gym.example.
+sip	IN A 10.1.0.30
+
+; 通配符
+*.wifi	IN A 10.9.0.1
+
+; CNAME 链与环(用于错误处理测试)
+chain1	IN CNAME chain2.gym.example.
+chain2	IN CNAME chain3.gym.example.
+chain3	IN A 10.9.9.9
+loop1	IN CNAME loop2.gym.example.
+loop2	IN CNAME loop1.gym.example.
+
+; 大应答(超过 512 字节, 测试 UDP 截断 + TCP 重试)
+big	IN TXT "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+big	IN TXT "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+big	IN TXT "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+big	IN TXT "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+big	IN TXT "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+big	IN TXT "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
