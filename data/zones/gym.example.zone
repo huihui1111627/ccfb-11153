@@ -1,0 +1,47 @@
+$ORIGIN gym.example.
+$TTL 60
+@ 60 IN SOA ns1.gym.example. hostmaster.gym.example. (
+    1795020820 ; serial
+    7200 ; refresh
+    3600 ; retry
+    1209600 ; expire
+    60 ; minimum
+)
+; fallback4=192.0.2.100
+_sip._tcp 60 IN SRV 10 5 5060 api.gym.example.
+api 60 IN A 10.1.0.2 ; dc=sh
+api 60 IN A 10.2.0.2 ; dc=bj
+api 60 IN AAAA 2001:db8::10
+app 60 IN CNAME www.gym.example.
+big 60 IN TXT "padding-record-number-1-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-2-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-3-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-4-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-5-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-6-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-7-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-8-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-9-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-10-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-11-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-12-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-13-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-14-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-15-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-16-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-17-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-18-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-19-abcdefghijklmnopqrstuvwxyz0123456789"
+big 60 IN TXT "padding-record-number-20-abcdefghijklmnopqrstuvwxyz0123456789"
+@ 60 IN NS ns1.gym.example.
+@ 60 IN MX 10 mail.gym.example.
+@ 60 IN TXT "v=spf1 -all"
+@ 60 IN A 10.1.0.10 ; dc=sh weight=5
+@ 60 IN A 10.2.0.10 ; dc=bj weight=3
+@ 60 IN A 10.3.0.10 ; dc=gz weight=2
+lb 60 IN A 127.0.0.1 ; dc=sh
+mail 60 IN A 10.1.0.25
+ns1 60 IN A 127.0.0.1
+www 60 IN A 10.1.0.1 ; dc=sh weight=5
+www 60 IN A 10.2.0.1 ; dc=bj weight=3
+www 60 IN A 10.3.0.1 ; dc=gz weight=2

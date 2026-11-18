@@ -1,0 +1,30 @@
+{
+  "dns_addr": "127.0.0.1:5354",
+  "http_addr": "127.0.0.1:8054",
+  "upstreams": ["223.5.5.5:53", "119.29.29.29:53"],
+  "data_dir": "data",
+  "datacenters": [
+    { "name": "sh", "region": "华东", "weight": 5 },
+    { "name": "bj", "region": "华北", "weight": 3 },
+    { "name": "gz", "region": "华南", "weight": 2 }
+  ],
+  "subnets": [
+    { "cidr": "10.1.0.0/16",  "dc": "sh", "region": "华东" },
+    { "cidr": "10.2.0.0/16",  "dc": "bj", "region": "华北" },
+    { "cidr": "10.3.0.0/16",  "dc": "gz", "region": "华南" },
+    { "cidr": "127.0.2.0/24", "dc": "bj", "region": "华北" },
+    { "cidr": "127.0.3.0/24", "dc": "gz", "region": "华南" },
+    { "cidr": "127.0.0.0/8",  "dc": "sh", "region": "本机" }
+  ],
+  "rate_limit": {
+    "enabled": true,
+    "prefix_v4": 24,
+    "prefix_v6": 56,
+    "qps": 50,
+    "burst": 100,
+    "identical_max": 10,
+    "identical_window": 2,
+    "action": "slip"
+  },
+  "health": { "interval_sec": 1, "timeout_sec": 1 }
+}

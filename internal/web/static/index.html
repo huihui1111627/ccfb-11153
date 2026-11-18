@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>健身房会员 DNS 管理</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "PingFang SC", sans-serif; margin: 0; background: #f4f5f7; color: #222; }
+  header { background: #1f2937; color: #fff; padding: 12px 24px; display: flex; align-items: baseline; gap: 16px; }
+  header h1 { font-size: 18px; margin: 0; }
+  header span { color: #9ca3af; font-size: 13px; }
+  nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 24px; display: flex; gap: 4px; }
+  nav button { border: none; background: none; padding: 12px 16px; cursor: pointer; font-size: 14px; color: #6b7280; border-bottom: 2px solid transparent; }
+  nav button.active { color: #111827; border-bottom-color: #2563eb; font-weight: 600; }
+  main { padding: 20px 24px; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #f0f0f0; }
+  th { color: #6b7280; font-weight: 600; }
+  input, select, textarea { border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+  button.btn { background: #2563eb; color: #fff; border: none; border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 13px; }
+  button.btn.secondary { background: #e5e7eb; color: #111827; }
+  button.btn.danger { background: #dc2626; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .up { color: #059669; font-weight: 600; }
+  .down { color: #dc2626; font-weight: 600; }
+  .muted { color: #9ca3af; font-size: 12px; }
+  textarea { width: 100%; font-family: ui-monospace, monospace; }
+  h3 { margin: 0 0 12px; font-size: 15px; }
+  .tag { display: inline-block; background: #eff6ff; color: #1d4ed8; border-radius: 4px; padding: 1px 6px; font-size: 12px; margin-right: 4px; }
+</style>
+</head>
+<body>
+<header><h1>权威 DNS 管理</h1><span id="total"></span></header>
+<nav>
+  <button data-tab="zones" class="active">域名区</button>
+  <button data-tab="records">记录管理</button>
+  <button data-tab="health">健康检查</button>
+  <button data-tab="logs">解析日志</button>
+  <button data-tab="ratelimit">限速策略</button>
+  <button data-tab="stats">分配统计</button>
+</nav>
+<main>
+  <div id="tab-zones" class="tab">
+    <div class="card">
+      <h3>域名区</h3>
+      <div class="row">
+        <input id="newZone" placeholder="example.com">
+        <button class="btn" onclick="addZone()">新建区</button>
+      </div>
+      <table id="zoneTable"><thead><tr><th>区</th><th>记录数</th><th>SOA Serial</th><th>操作</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <h3>区文件导入 / 导出</h3>
+      <div class="row">
+        <select id="ioZone"></select>
+        <button class="btn secondary" onclick="exportZone()">导出区文件</button>
+        <button class="btn" onclick="importZone()">导入(覆盖记录)</button>
+      </div>
+      <textarea id="zoneText" rows="14" placeholder="$ORIGIN example.com.&#10;$TTL 300&#10;..."></textarea>
+    </div>
+    <div class="card">
+      <h3>区设置 <span class="muted">SOA / 兜底地址 / 健康检查</span></h3>
+      <div class="row"><select id="setZone"></select></div>
+      <div class="row">
+        <label>兜底 IPv4 <input id="fb4" size="14"></label>
+        <label>兜底 IPv6 <input id="fb6" size="18"></label>
+        <label>默认 TTL <input id="defTTL" size="5" type="number"></label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="hcEnabled"> 启用健康检查</label>
+        <label>类型 <select id="hcType"><option>tcp</option><option>http</option></select></label>
+        <label>端口 <input id="hcPort" size="5" type="number"></label>
+        <label>路径 <input id="hcPath" size="10" placeholder="/healthz"></label>
+        <label>间隔秒 <input id="hcInterval" size="4" type="number"></label>
+      </div>
+      <button class="btn" onclick="saveSettings()">保存设置</button>
+    </div>
+  </div>
+
+  <div id="tab-records" class="tab" style="display:none">
+    <div class="card">
+      <h3>记录管理</h3>
+      <div class="row"><select id="recZone" onchange="loadRecords()"></select></div>
+      <div class="row">
+        <input id="rName" placeholder="www(相对名) 或 @">
+        <select id="rType"><option>A</option><option>AAAA</option><option>CNAME</option><option>MX</option><option>TXT</option><option>SRV</option><option>NS</option><option>ALIAS</option></select>
+        <input id="rValue" placeholder="值, 如 10.0.0.1 / 10 mail.x. / 10 5 5060 sip.x." size="34">
+        <input id="rTTL" placeholder="TTL" size="5" type="number">
+        <input id="rDC" placeholder="机房" size="4">
+        <input id="rWeight" placeholder="权重" size="4" type="number">
+        <button class="btn" onclick="addRecord()">添加</button>
+      </div>
+      <div class="muted">MX 值格式: "优先级 主机"; SRV: "优先级 权重 端口 主机"; ALIAS 仅区顶点。A/AAAA 可填机房与权重做调度。</div>
+      <table id="recTable" style="margin-top:10px"><thead><tr><th>名称</th><th>类型</th><th>TTL</th><th>值</th><th>机房</th><th>权重</th><th></th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <div id="tab-health" class="tab" style="display:none">
+    <div class="card">
+      <h3>健康检查 <button class="btn secondary" onclick="probeNow()">立即探测</button></h3>
+      <table id="healthTable"><thead><tr><th>地址</th><th>记录</th><th>机房</th><th>方式</th><th>状态</th><th>最近检查</th><th>错误</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <div id="tab-logs" class="tab" style="display:none">
+    <div class="card">
+      <h3>解析日志 <button class="btn secondary" onclick="loadLogs()">刷新</button></h3>
+      <table id="logTable"><thead><tr><th>时间</th><th>客户端</th><th>网段</th><th>地区</th><th>域名</th><th>类型</th><th>结果</th><th>机房</th><th>应答</th><th>耗时ms</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <div id="tab-ratelimit" class="tab" style="display:none">
+    <div class="card">
+      <h3>限速策略(按来源网段,防反射放大)</h3>
+      <div class="row">
+        <label><input type="checkbox" id="rlEnabled"> 启用</label>
+        <label>IPv4 前缀 <input id="rlP4" size="3" type="number"></label>
+        <label>IPv6 前缀 <input id="rlP6" size="3" type="number"></label>
+        <label>QPS <input id="rlQPS" size="6" type="number"></label>
+        <label>突发 <input id="rlBurst" size="5" type="number"></label>
+      </div>
+      <div class="row">
+        <label>相同应答上限 <input id="rlIdMax" size="4" type="number"></label>
+        <label>窗口秒 <input id="rlIdWin" size="4" type="number"></label>
+        <label>超限动作 <select id="rlAction"><option value="slip">截断(TC=1)</option><option value="drop">丢弃</option></select></label>
+        <button class="btn" onclick="saveRL()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-stats" class="tab" style="display:none">
+    <div class="card">
+      <h3>按地区统计 <button class="btn secondary" onclick="loadStats()">刷新</button></h3>
+      <table id="regionTable"><thead><tr><th>地区</th><th>总查询</th><th>各机房分布</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <h3>按子网的机房分配</h3>
+      <table id="assignTable"><thead><tr><th>子网</th><th>地区</th><th>总查询</th><th>各机房分布</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+async function api(path, method, body) {
+  const opt = { method: method || 'GET' };
+  if (body !== undefined) {
+    opt.headers = { 'Content-Type': 'application/json' };
+    opt.body = typeof body === 'string' ? body : JSON.stringify(body);
+  }
+  const r = await fetch(path, opt);
+  if (!r.ok) throw new Error(await r.text());
+  const ct = r.headers.get('content-type') || '';
+  return ct.includes('json') ? r.json() : r.text();
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  document.querySelectorAll('.tab').forEach(t => t.style.display = 'none');
+  $('tab-' + b.dataset.tab).style.display = '';
+  loadTab(b.dataset.tab);
+});
+function loadTab(t) {
+  ({ zones: loadZones, records: loadRecords, health: loadHealth,
+     logs: loadLogs, ratelimit: loadRL, stats: loadStats })[t]();
+}
+
+async function loadZones() {
+  const zones = await api('/api/zones');
+  const tb = document.querySelector('#zoneTable tbody');
+  tb.innerHTML = '';
+  (zones || []).forEach(z => {
+    tb.innerHTML += `<tr><td>${z.name}</td><td>${z.records}</td><td>${z.serial}</td>
+      <td><button class="btn danger" onclick="delZone('${z.name}')">删除</button></td></tr>`;
+  });
+  const opts = (zones || []).map(z => `<option>${z.name}</option>`).join('');
+  ['ioZone', 'setZone', 'recZone'].forEach(id => { const el = $(id); const v = el.value; el.innerHTML = opts; if (v) el.value = v; });
+  const st = await api('/api/stats');
+  $('total').textContent = '累计查询 ' + st.total;
+  loadSettings();
+}
+async function addZone() {
+  const name = $('newZone').value.trim();
+  if (!name) return;
+  await api('/api/zones', 'POST', { name });
+  $('newZone').value = '';
+  loadZones();
+}
+async function delZone(n) {
+  if (!confirm('删除区 ' + n + '?')) return;
+  await api('/api/zones/' + n, 'DELETE');
+  loadZones();
+}
+async function exportZone() {
+  const z = $('ioZone').value;
+  if (!z) return;
+  $('zoneText').value = await api('/api/zones/' + z + '/export');
+}
+async function importZone() {
+  const z = $('ioZone').value;
+  try {
+    await api('/api/zones/' + (z || 'x') + '/import', 'POST', $('zoneText').value);
+    alert('导入成功'); loadZones();
+  } catch (e) { alert('导入失败: ' + e.message); }
+}
+async function loadSettings() {
+  const z = $('setZone').value;
+  if (!z) return;
+  const d = await api('/api/zones/' + z);
+  $('fb4').value = d.fallback4 || ''; $('fb6').value = d.fallback6 || '';
+  $('defTTL').value = d.default_ttl || 300;
+  $('hcEnabled').checked = d.health.enabled;
+  $('hcType').value = d.health.type || 'tcp';
+  $('hcPort').value = d.health.port || 80;
+  $('hcPath').value = d.health.path || '';
+  $('hcInterval').value = d.health.interval_sec || 5;
+}
+$('setZone').onchange = loadSettings;
+async function saveSettings() {
+  const z = $('setZone').value;
+  const d = await api('/api/zones/' + z);
+  await api('/api/zones/' + z + '/settings', 'PUT', {
+    default_ttl: +$('defTTL').value, soa: d.soa,
+    fallback4: $('fb4').value.trim(), fallback6: $('fb6').value.trim(),
+    health: { enabled: $('hcEnabled').checked, type: $('hcType').value,
+      port: +$('hcPort').value, path: $('hcPath').value, interval_sec: +$('hcInterval').value, timeout_sec: 2 }
+  });
+  alert('已保存');
+}
+
+async function loadRecords() {
+  const z = $('recZone').value;
+  if (!z) return;
+  const d = await api('/api/zones/' + z);
+  const tb = document.querySelector('#recTable tbody');
+  tb.innerHTML = '';
+  Object.keys(d.records || {}).sort().forEach(name => {
+    const byType = {};
+    d.records[name].forEach(r => { (byType[r.type] = byType[r.type] || []).push(r); });
+    Object.keys(byType).forEach(type => {
+      byType[type].forEach((r, idx) => {
+        tb.innerHTML += `<tr><td>${name}</td><td>${type}</td><td>${r.ttl || d.default_ttl}</td>
+          <td>${r.value}</td><td>${r.dc || ''}</td><td>${r.weight || ''}</td>
+          <td><button class="btn danger" onclick="delRecord('${name}','${type}',${idx})">删</button></td></tr>`;
+      });
+    });
+  });
+}
+async function addRecord() {
+  const z = $('recZone').value;
+  let name = $('rName').value.trim() || '@';
+  if (name !== '@' && !name.endsWith('.')) name = name + '.' + z;
+  name = name.replace(/\.$/, '');
+  try {
+    await api('/api/zones/' + z + '/records', 'POST', {
+      name, type: $('rType').value, value: $('rValue').value.trim(),
+      ttl: +$('rTTL').value || 0, dc: $('rDC').value.trim(), weight: +$('rWeight').value || 0
+    });
+    loadRecords();
+  } catch (e) { alert(e.message); }
+}
+async function delRecord(name, type, idx) {
+  const z = $('recZone').value;
+  await api(`/api/zones/${z}/records?name=${name}&type=${type}&idx=${idx}`, 'DELETE');
+  loadRecords();
+}
+
+async function loadHealth() {
+  const hs = await api('/api/health');
+  const tb = document.querySelector('#healthTable tbody');
+  tb.innerHTML = '';
+  (hs || []).forEach(h => {
+    tb.innerHTML += `<tr><td>${h.ip}:${h.port}</td><td>${h.record}</td><td>${h.dc || ''}</td>
+      <td>${h.type}</td><td class="${h.healthy ? 'up' : 'down'}">${h.healthy ? '正常' : '故障'}</td>
+      <td>${h.last_check ? new Date(h.last_check).toLocaleTimeString() : '-'}</td>
+      <td>${h.last_error || ''}</td></tr>`;
+  });
+}
+async function probeNow() { await api('/api/health/probe', 'POST'); setTimeout(loadHealth, 1500); }
+
+async function loadLogs() {
+  const logs = await api('/api/logs?n=200');
+  const tb = document.querySelector('#logTable tbody');
+  tb.innerHTML = '';
+  (logs || []).forEach(l => {
+    tb.innerHTML += `<tr><td>${new Date(l.time).toLocaleTimeString()}</td><td>${l.client}</td>
+      <td>${l.subnet}</td><td>${l.region || '-'}</td><td>${l.qname}</td><td>${l.qtype}</td>
+      <td>${l.rcode}${l.truncated ? '(TC)' : ''}</td><td>${l.dc || ''}</td>
+      <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis">${l.answers || ''}</td>
+      <td>${l.elapsed_ms.toFixed(2)}</td></tr>`;
+  });
+}
+
+async function loadRL() {
+  const p = await api('/api/ratelimit');
+  $('rlEnabled').checked = p.enabled;
+  $('rlP4').value = p.prefix_v4; $('rlP6').value = p.prefix_v6;
+  $('rlQPS').value = p.qps; $('rlBurst').value = p.burst;
+  $('rlIdMax').value = p.identical_max; $('rlIdWin').value = p.identical_window;
+  $('rlAction').value = p.action;
+}
+async function saveRL() {
+  await api('/api/ratelimit', 'PUT', {
+    enabled: $('rlEnabled').checked, prefix_v4: +$('rlP4').value, prefix_v6: +$('rlP6').value,
+    qps: +$('rlQPS').value, burst: +$('rlBurst').value,
+    identical_max: +$('rlIdMax').value, identical_window: +$('rlIdWin').value,
+    action: $('rlAction').value
+  });
+  alert('已保存');
+}
+
+async function loadStats() {
+  const st = await api('/api/stats');
+  const dcList = m => Object.keys(m || {}).sort().map(dc =>
+    `<span class="tag">${dc}: ${m[dc]}</span>`).join('');
+  document.querySelector('#regionTable tbody').innerHTML =
+    (st.regions || []).map(r => `<tr><td>${r.region || '(未匹配)'}</td><td>${r.total}</td><td>${dcList(r.by_dc)}</td></tr>`).join('');
+  document.querySelector('#assignTable tbody').innerHTML =
+    (st.assignments || []).map(a => `<tr><td>${a.subnet}</td><td>${a.region || '-'}</td><td>${a.total}</td><td>${dcList(a.by_dc)}</td></tr>`).join('');
+}
+
+loadZones();
+</script>
+</body>
+</html>
